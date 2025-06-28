@@ -5,7 +5,7 @@
   "scripts": {
     "it": "node server_serachEngine.js",
     "test": "(eslint lib || true) && jest",
-    "build": "npm install && npx puppeteer browsers install"
+    "build": "npm install && npx puppeteer browsers install chrome"
   },
   "repository": {
     "type": "git",
