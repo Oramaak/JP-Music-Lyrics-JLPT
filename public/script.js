@@ -8,7 +8,7 @@ async function submitQuery() {
 	const lyricsHeadDiv = document.getElementById("lyrics_head");
 	const fontSizeControl = document.getElementById("fontSizeControl");
 	const alignmentSelect = document.getElementById("alignment");
-	
+
 	resultDiv.innerHTML = "Loading...";
 	lyricsDiv.innerHTML = ""; // Clear previous lyrics
 	lyricsContentDiv.innerHTML = ""; // Clear previous content
@@ -78,7 +78,7 @@ async function submitQuery() {
 					// Handle the song response if needed
 					const songData = await songResponse.json();
 
-					displayLyrics(songData, item);	
+					displayLyrics(songData, item);
 					displayAnnotationsLyrics();
 				} catch (err) {
 					console.error("Song fetch error:", err);
@@ -120,7 +120,7 @@ function displayLyrics(songData, item) {
 
 async function displayAnnotationsLyrics() {
 	const lyricsAnnotationsDiv = document.getElementById("lyrics_annotations");
-	
+
 	// Initialize the annotations display - just the color-coded text
 	lyricsAnnotationsDiv.innerHTML = `
 		<div id="color-coded-lyrics" style="white-space: pre-wrap; line-height: 1.8;"></div>
@@ -143,49 +143,49 @@ async function displayAnnotationsLyrics() {
 	try {
 		// Create EventSource for Server-Sent Events
 		const eventSource = new EventSource('/api/annotations');
-		
+
 		const processingStatus = document.getElementById('processing-status');
 		const colorCodedLyrics = document.getElementById('color-coded-lyrics');
 		const summarySection = document.getElementById('summary-section');
 		const jlptSummary = document.getElementById('jlpt-summary');
-		
+
 		const allAnnotations = [];
 		const lyricsLines = [];
 
-		eventSource.onmessage = function(event) {
+		eventSource.onmessage = function (event) {
 			try {
 				const data = JSON.parse(event.data);
-				
-				switch(data.type) {
+
+				switch (data.type) {
 					case 'status':
 						processingStatus.textContent = data.message;
 						break;
-						
+
 					case 'progress':
 						processingStatus.textContent = `Processing line ${data.progress + 1}/${data.total}: "${data.currentLine.substring(0, 40)}${data.currentLine.length > 40 ? '...' : ''}"`;
 						break;
-						
+
 					case 'word-processing':
 						processingStatus.textContent = `Looking up: ${data.word}`;
 						break;
-						
+
 					case 'line-complete':
 						// Add the completed line to our annotations
 						allAnnotations[data.lineIndex] = {
 							line: data.line,
 							annotations: data.annotations
 						};
-						
+
 						// Create color-coded version of this line
 						const colorCodedLine = createColorCodedLine(data.line, data.annotations);
 						lyricsLines[data.lineIndex] = colorCodedLine;
-						
+
 						// Update the display with all processed lines so far
 						updateColorCodedDisplay(lyricsLines, colorCodedLyrics);
-						
+
 						processingStatus.textContent = `Completed line ${data.progress}/${data.total}`;
 						break;
-						
+
 					case 'line-error':
 						// Add the error line to our annotations
 						allAnnotations[data.lineIndex] = {
@@ -193,22 +193,22 @@ async function displayAnnotationsLyrics() {
 							annotations: [],
 							error: data.error
 						};
-						
+
 						// Add uncolored line for errors
 						lyricsLines[data.lineIndex] = data.line;
 						updateColorCodedDisplay(lyricsLines, colorCodedLyrics);
-						
+
 						processingStatus.textContent = `Processed line ${data.progress}/${data.total} (with error)`;
 						break;
-						
+
 					case 'complete':
 						document.getElementById('processing-status-section').style.display = 'none'; // Hide processing status section when complete
-						
+
 						// Show summary
 						showSummary(allAnnotations, summarySection, jlptSummary);
 						eventSource.close();
 						break;
-						
+
 					case 'error':
 						processingStatus.textContent = `Error: ${data.message}`;
 						eventSource.close();
@@ -219,7 +219,7 @@ async function displayAnnotationsLyrics() {
 			}
 		};
 
-		eventSource.onerror = function(error) {
+		eventSource.onerror = function (error) {
 			console.error('EventSource failed:', error);
 			processingStatus.textContent = 'Connection error - analysis may be incomplete';
 			eventSource.close();
@@ -235,20 +235,20 @@ function createColorCodedLine(line, annotations) {
 	if (!annotations || annotations.length === 0) {
 		return line; // Return original line if no annotations
 	}
-	
+
 	let colorCodedLine = line;
-	
+
 	// Sort annotations by word length (longest first) to avoid partial replacements
 	const sortedAnnotations = [...annotations].sort((a, b) => b.word.length - a.word.length);
-	
+
 	sortedAnnotations.forEach(annotation => {
 		const levelColor = getLevelColor(annotation.jlptLevel);
 		const coloredWord = `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${annotation.jlptLevel || 'Unknown'}">${annotation.word}</span>`;
-		
+
 		// Replace the word in the line (case sensitive)
 		colorCodedLine = colorCodedLine.replace(new RegExp(escapeRegex(annotation.word), 'g'), coloredWord);
 	});
-	
+
 	return colorCodedLine;
 }
 
@@ -257,7 +257,7 @@ function updateColorCodedDisplay(lyricsLines, container) {
 	const displayText = lyricsLines
 		.map(line => line || '') // Replace undefined with empty string
 		.join('\n');
-	
+
 	container.innerHTML = displayText;
 }
 
@@ -271,7 +271,7 @@ function showSummary(allAnnotations, summarySection, jlptSummary) {
 	const uniqueWords = new Set();
 	let totalLines = 0;
 	let linesWithData = 0;
-	
+
 	allAnnotations.forEach(annotation => {
 		if (annotation) {
 			totalLines++;
@@ -293,20 +293,20 @@ function showSummary(allAnnotations, summarySection, jlptSummary) {
 			}
 		}
 	});
-	
+
 	// Determine overall difficulty
 	const totalWords = Object.values(levelCounts).reduce((a, b) => a + b, 0);
 	let difficulty = 'Unknown';
 	if (totalWords > 0) {
 		const hardWords = levelCounts.N1 + levelCounts.N2;
 		const easyWords = levelCounts.N5 + levelCounts.N4;
-		
+
 		if (hardWords > totalWords * 0.3) difficulty = 'Advanced (N1-N2)';
 		else if (levelCounts.N3 > totalWords * 0.3) difficulty = 'Intermediate (N3)';
 		else if (easyWords > totalWords * 0.5) difficulty = 'Beginner (N4-N5)';
 		else difficulty = 'Mixed Levels';
 	}
-	
+
 	jlptSummary.innerHTML = `
 		<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 10px 0;">
 			<div style="background-color: white; padding: 15px; border-radius: 5px; border: 1px solid #ddd;">
@@ -326,19 +326,19 @@ function showSummary(allAnnotations, summarySection, jlptSummary) {
 			</div>
 		</div>
 	`;
-	
+
 	summarySection.style.display = 'block';
 }
 
 function getLevelColor(jlptLevel) {
 	if (!jlptLevel) return '#9E9E9E';
-	
+
 	if (jlptLevel.includes('N5')) return '#4CAF50';
 	if (jlptLevel.includes('N4')) return '#8BC34A';
 	if (jlptLevel.includes('N3')) return '#FFC107';
 	if (jlptLevel.includes('N2')) return '#FF9800';
 	if (jlptLevel.includes('N1')) return '#F44336';
-	
+
 	return '#9E9E9E';
 }
 
