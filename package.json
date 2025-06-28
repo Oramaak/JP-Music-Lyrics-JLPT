@@ -3,7 +3,7 @@
   "description": "A package for scraping Japanese music lyrics and converting them to JLPT levels.",
   "version": "1.0.0",
   "scripts": {
-    "it": "node server_serachEngine.js", 
+    "it": "node server_serachEngine.js",
     "test": "(eslint lib || true) && jest",
     "build": "npm install"
   },
@@ -11,5 +11,11 @@
     "type": "git",
     "url": "https://github.com/Oramaak/JP-Music-Lyrics-JLPT.git"
   },
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.10.0",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0",
+    "puppeteer": "^24.11.1"
+  }
 }
