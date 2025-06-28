@@ -4,10 +4,11 @@
   "version": "1.0.0",
   "scripts": {
     "start": "yarn start", 
-     "test": "(eslint lib || true) && jest"
+    "test": "(eslint lib || true) && jest"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/Oramaak/JP-Music-Lyrics-JLPT.git"
-  }
+  },
+  "license": "ISC"
 }
