@@ -3,7 +3,7 @@
   "description": "A package for scraping Japanese music lyrics and converting them to JLPT levels.",
   "version": "1.0.0",
   "scripts": {
-    "start": "yarn start", 
+    "it": "yarn start", 
     "test": "(eslint lib || true) && jest"
   },
   "repository": {
