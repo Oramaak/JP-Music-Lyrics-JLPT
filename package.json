@@ -1,0 +1,12 @@
+{
+  "name": "jp-music-lyrics-jlpt",
+  "description": "A package for scraping Japanese music lyrics and converting them to JLPT levels.",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Oramaak/JP-Music-Lyrics-JLPT.git"
+  }
+}
