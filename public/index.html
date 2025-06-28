@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Japanese Music Lyrics JLPT</title>
+    <script src="script.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .input-container {
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            padding: 8px;
+            width: 70%;
+            font-size: 16px;
+        }
+        button {
+            padding: 8px 16px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+        }
+        .result-item:hover {
+            color: #4CAF50;
+            cursor: pointer;
+        }
+        #lyrics_content,
+        #lyrics_annotations {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 18px; /* Default font size */
+            white-space: pre-wrap; /* Preserve whitespace and line breaks */
+            line-height: 1.8; /* Improved readability */
+        }
+        .font-size-control {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .font-size-control label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .font-slider {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+        .font-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        .font-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            border: none;
+        }
+        .font-size-display {
+            min-width: 50px;
+            text-align: center;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .column {
+            float: left;
+            width: 50%;
+        }
+
+        /* Clear floats after the columns */
+        .row:after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+        
+        /* Annotation styles */
+        .annotation-line {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        #annotation-progress {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        
+        #current-processing {
+            min-height: 20px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Japanese Music Lyrics JLPT</h1>
+    
+    <div class="input-container">
+        <input type="text" id="inputText" placeholder="Enter your query here...">
+        <button onclick="submitQuery()">Submit</button>
+    </div>
+    
+    <div id="result"></div>
+    <h2 id="lyrics_head"></h2>
+    <div class="alignment" id="alignment" style="display: none;">
+        <label for="alignmentSelect">Alignment:</label>
+        <select id="alignmentSelect" onchange="toggleAlignment()">
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+        </select>
+    </div>
+    <div class="font-size-control" id="fontSizeControl" style="display: none;">
+        <label for="fontSlider">Font Size:</label>
+        <div class="slider-container">
+            <span>12px</span>
+            <input type="range" id="fontSlider" class="font-slider" min="12" max="36" value="18" oninput="adjustFontSize(this.value)">
+            <span>36px</span>
+            <div class="font-size-display" id="fontSizeDisplay">18px</div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="column" id="lyrics_content">
+        </div>
+        <div class="column" id="lyrics_annotations">
+        </div>
+</body>
+<script>
+    const inputText = document.getElementById("inputText");
+
+    inputText.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") {
+            event.preventDefault(); // Prevent form submission
+            submitQuery();
+        }
+    });
+</script>
+</html>
