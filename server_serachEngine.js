@@ -33,7 +33,7 @@ app.post('/api/query', async (req, res) => {
     try {
         console.log(`Searching for: ${query} site:lyrical-nonsense.com`);
         await page.goto(URL + encodeURIComponent(query) + encodeURIComponent(' site:lyrical-nonsense.com'), {
-            waitUntil: 'networkidle2',
+            waitUntil: 'networkidle0',
             timeout: 30000
         });
 
