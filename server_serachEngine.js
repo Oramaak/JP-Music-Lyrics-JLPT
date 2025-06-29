@@ -333,8 +333,8 @@ app.get('/api/annotations', async (req, res) => {
                 
                 // Use Puppeteer to navigate to Jisho.org and scrape JLPT data
                 await page.goto(`https://jisho.org/search/${encodeURIComponent(line)}`, {
-                    waitUntil: 'networkidle2',
-                    timeout: 15000
+                    waitUntil: 'networkidle0',
+                    timeout: 30000
                 });
                 
                 const annotations = await page.evaluate(() => {
@@ -459,8 +459,8 @@ app.get('/api/annotations', async (req, res) => {
                             })}\n\n`);
                             
                             await wordPage.goto(`https://jisho.org${annotation.detailUrl}`, {
-                                waitUntil: 'networkidle2',
-                                timeout: 15000
+                                waitUntil: 'networkidle0',
+                                timeout: 30000
                             });
                             
                             const jlptLevel = await wordPage.evaluate(() => {
