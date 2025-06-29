@@ -5,7 +5,10 @@
   "scripts": {
     "it": "node server_serachEngine.js",
     "test": "(eslint lib || true) && jest",
-    "build": "npm install && npx puppeteer browsers install chrome"
+    "build": "npm install && npx puppeteer browsers install chrome",
+    "chrome": "yarn path && yarn find",
+    "path": "node -e \"console.log(require('puppeteer').executablePath())\" && echo \"File exists.\" || echo \"File does not exist.\"",
+    "find": "find / -name chrome | grep puppeteer | grep -v node_modules"
   },
   "repository": {
     "type": "git",
