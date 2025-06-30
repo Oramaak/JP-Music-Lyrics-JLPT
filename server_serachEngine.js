@@ -37,8 +37,10 @@ app.post('/api/query', async (req, res) => {
             timeout: 30000
         });
 
+        await page.waitForSelector('ol li article, .result__body, [data-testid="result"]'); // Wait for main results to load
+
         // Wait a bit for dynamic content to load
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // await new Promise(resolve => setTimeout(resolve, 1500));
 
         // Debug: save page content
         // const fs = require('fs');
