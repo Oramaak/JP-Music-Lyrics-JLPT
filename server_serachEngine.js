@@ -402,8 +402,12 @@ app.get('/api/annotations', async (req, res) => {
                 // Then remove any remaining HTML tags
                 searchText = searchText.replace(/<[^>]*>/g, '');
                 
-                // Clean up extra whitespace but preserve single spaces between words
-                searchText = searchText.replace(/\s+/g, ' ').trim();
+                // Clean up extra whitespace but be smart about Japanese text
+                // Remove spaces between Japanese characters (hiragana, katakana, kanji)
+                searchText = searchText
+                    .replace(/\s+/g, ' ') // First normalize all whitespace to single spaces
+                    .replace(/\s*([ひ-ゟム-ヿ一-龯々〇〻ぁ-ゖゝ-ゞ])\s*/g, '$1') // Remove spaces around Japanese characters
+                    .trim();
                 
                 // Create a mapping of original positions to help with styling later
                 const originalLine = line;
@@ -418,11 +422,11 @@ app.get('/api/annotations', async (req, res) => {
                 while ((match = rubyRegex.exec(originalLine)) !== null) {
                     // Add any text before this ruby
                     if (match.index > lastIndex) {
-                        const beforeText = originalLine.substring(lastIndex, match.index).replace(/<[^>]*>/g, '');
-                        if (beforeText.trim()) {
+                        const beforeText = originalLine.substring(lastIndex, match.index).replace(/<[^>]*>/g, '').trim();
+                        if (beforeText) {
                             textSegments.push({
                                 type: 'normal',
-                                text: beforeText.trim(),
+                                text: beforeText,
                                 originalHtml: originalLine.substring(lastIndex, match.index)
                             });
                         }
@@ -442,21 +446,21 @@ app.get('/api/annotations', async (req, res) => {
                 
                 // Add any remaining text after the last ruby
                 if (lastIndex < originalLine.length) {
-                    const remainingText = originalLine.substring(lastIndex).replace(/<[^>]*>/g, '');
-                    if (remainingText.trim()) {
+                    const remainingText = originalLine.substring(lastIndex).replace(/<[^>]*>/g, '').trim();
+                    if (remainingText) {
                         textSegments.push({
                             type: 'normal',
-                            text: remainingText.trim(),
+                            text: remainingText,
                             originalHtml: originalLine.substring(lastIndex)
                         });
                     }
                 }
                 
                 // If no segments were found (no ruby text), treat the entire line as one normal segment
-                if (textSegments.length === 0 && searchText.trim()) {
+                if (textSegments.length === 0 && searchText) {
                     textSegments.push({
                         type: 'normal',
-                        text: searchText.trim(),
+                        text: searchText,
                         originalHtml: originalLine
                     });
                 }

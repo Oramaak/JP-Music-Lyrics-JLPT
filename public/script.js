@@ -260,7 +260,8 @@ function createColorCodedLine(line, annotations, textSegments) {
 
 		// Handle ruby text specially - we want to color the base text (rb) but preserve the structure
 		const rubyPattern = new RegExp(`<ruby><rb>(${escapeRegex(annotation.word)})</rb><rt>(.*?)</rt></ruby>`, 'g');
-		if (rubyPattern.test(colorCodedLine)) {
+		const rubyMatches = colorCodedLine.match(rubyPattern);
+		if (rubyMatches) {
 			// Replace ruby structure with colored base text but keep furigana
 			colorCodedLine = colorCodedLine.replace(rubyPattern, (match, baseText, furigana) => {
 				return `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${annotation.jlptLevel || 'Unknown'}">${baseText}</span></rb><rt>${furigana}</rt></ruby>`;
@@ -314,7 +315,8 @@ function createColorCodedLineWithSegments(line, annotations, textSegments) {
 			
 			// Handle ruby text specially - we want to color the base text (rb) but preserve the structure
 			const rubyPattern = new RegExp(`<ruby><rb>(${escapeRegex(annotation.word)})</rb><rt>(.*?)</rt></ruby>`, 'g');
-			if (rubyPattern.test(workingLine)) {
+			const rubyMatches = workingLine.match(rubyPattern);
+			if (rubyMatches) {
 				// Replace ruby structure with colored base text but keep furigana
 				workingLine = workingLine.replace(rubyPattern, (match, baseText, furigana) => {
 					return `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${baseText}</span></rb><rt>${furigana}</rt></ruby>`;
@@ -334,7 +336,7 @@ function createColorCodedLineWithSegments(line, annotations, textSegments) {
 
 	// Track which segments have been processed
 	const processedSegments = new Set();
-	const partiallyProcessedSegments = new Map(); // segmentIndex -> remainingText
+	const partiallyProcessedSegments = new Map(); // segmentIndex -> { remainingText, remainingHtml }
 
 	// First pass: handle combined and partial_combined annotations (prioritize longer matches)
 	annotations
@@ -353,96 +355,122 @@ function createColorCodedLineWithSegments(line, annotations, textSegments) {
 			}
 			
 			if (!alreadyProcessed) {
-				// Mark segments as processed
-				for (let i = start; i < start + length - (partialEnd !== null ? 1 : 0); i++) {
+				// Mark all segments as processed, including partial ones
+				for (let i = start; i < start + length; i++) {
 					processedSegments.add(i);
 				}
 				
-				// If this is a partial match, mark the last segment as partially processed
+				// If this is a partial match, store the remaining text info
 				if (partialEnd !== null) {
 					const lastSegmentIndex = start + length - 1;
 					const lastSegment = textSegments[lastSegmentIndex];
 					const remainingText = lastSegment.text.substring(partialEnd);
-					partiallyProcessedSegments.set(lastSegmentIndex, remainingText);
+					const remainingHtml = lastSegment.type === 'ruby' ? 
+						`<ruby><rb>${lastSegment.baseText.substring(partialEnd)}</rb><rt>${lastSegment.furigana}</rt></ruby>` : 
+						remainingText;
+					partiallyProcessedSegments.set(lastSegmentIndex, { 
+						remainingText, 
+						remainingHtml, 
+						partialEnd,
+						segmentType: lastSegment.type,
+						baseText: lastSegment.baseText,
+						furigana: lastSegment.furigana
+					});
 				}
 			}
 		});
 
 	// Second pass: process all segments in order
 	textSegments.forEach((segment, index) => {
-		// Check if this segment is part of a combined annotation
-		const combinedAnnotation = annotations.find(ann => 
-			(ann.segmentType === 'combined' || ann.segmentType === 'partial_combined') && 
-			ann.segmentRange && 
-			index >= ann.segmentRange.start && 
-			index < ann.segmentRange.start + ann.segmentRange.length
-		);
+		// Skip if this segment has already been processed
+		if (processedSegments.has(index)) {
+			// Check if this segment is part of a combined annotation and we're at the start
+			const combinedAnnotation = annotations.find(ann => 
+				(ann.segmentType === 'combined' || ann.segmentType === 'partial_combined') && 
+				ann.segmentRange && 
+				index === ann.segmentRange.start
+			);
 
-		if (combinedAnnotation && index === combinedAnnotation.segmentRange.start) {
-			// This is the start of a combined annotation - render the whole thing
-			const { start, length, partialEnd } = combinedAnnotation.segmentRange;
-			const levelColor = getLevelColor(combinedAnnotation.jlptLevel);
-			const title = combinedAnnotation.jlptLevel || 'Unknown';
-			
-			// Build the combined segment HTML with proper styling
-			let combinedHtml = '';
-			for (let i = start; i < start + length; i++) {
-				const seg = textSegments[i];
-				let segmentText = seg.text;
+			if (combinedAnnotation) {
+				// This is the start of a combined annotation - render the whole thing
+				const { start, length, partialEnd } = combinedAnnotation.segmentRange;
+				const levelColor = getLevelColor(combinedAnnotation.jlptLevel);
+				const title = combinedAnnotation.jlptLevel || 'Unknown';
 				
-				// If this is the last segment and we have a partial match, only use part of it
-				if (i === start + length - 1 && partialEnd !== null) {
-					segmentText = seg.text.substring(0, partialEnd);
+				// Build the combined segment HTML with proper styling
+				let combinedHtml = '';
+				for (let i = start; i < start + length; i++) {
+					const seg = textSegments[i];
+					
+					// If this is the last segment and we have a partial match, only use part of it
+					if (i === start + length - 1 && partialEnd !== null) {
+						if (seg.type === 'ruby') {
+							combinedHtml += `<ruby><rb>${seg.baseText.substring(0, partialEnd)}</rb><rt>${seg.furigana}</rt></ruby>`;
+						} else {
+							combinedHtml += seg.text.substring(0, partialEnd);
+						}
+					} else {
+						if (seg.type === 'ruby') {
+							combinedHtml += `<ruby><rb>${seg.baseText}</rb><rt>${seg.furigana}</rt></ruby>`;
+						} else {
+							combinedHtml += seg.text;
+						}
+					}
 				}
 				
-				if (seg.type === 'ruby') {
-					combinedHtml += `<ruby><rb>${seg.baseText}</rb><rt>${seg.furigana}</rt></ruby>`;
-				} else {
-					combinedHtml += segmentText;
+				// Wrap the entire combined segment with color styling
+				result += `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${combinedHtml}</span>`;
+				
+				// If there's remaining text from a partial match, handle it
+				if (partialEnd !== null) {
+					const lastSegmentIndex = start + length - 1;
+					const remainingData = partiallyProcessedSegments.get(lastSegmentIndex);
+					if (remainingData) {
+						// Check if the remaining text has its own annotation
+						const remainingAnnotation = annotations.find(ann => 
+							ann.word === remainingData.remainingText && 
+							ann.segmentType !== 'combined' && 
+							ann.segmentType !== 'partial_combined'
+						);
+						
+						if (remainingAnnotation) {
+							// The remaining text has its own annotation, color it
+							const remainingLevelColor = getLevelColor(remainingAnnotation.jlptLevel);
+							const remainingTitle = remainingAnnotation.jlptLevel || 'Unknown';
+							
+							if (remainingData.segmentType === 'ruby') {
+								result += `<ruby><rb><span style="background-color: ${remainingLevelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${remainingTitle}">${remainingData.baseText.substring(remainingData.partialEnd)}</span></rb><rt>${remainingData.furigana}</rt></ruby>`;
+							} else {
+								result += `<span style="background-color: ${remainingLevelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${remainingTitle}">${remainingData.remainingText}</span>`;
+							}
+						} else {
+							// No annotation for remaining text, add it as-is
+							result += remainingData.remainingHtml;
+						}
+					}
 				}
 			}
-			
-			// Wrap the entire combined segment with color styling
-			result += `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${combinedHtml}</span>`;
-			
-			// If there's remaining text from a partial match, add it
-			if (partialEnd !== null) {
-				const lastSegmentIndex = start + length - 1;
-				const remainingText = partiallyProcessedSegments.get(lastSegmentIndex);
-				if (remainingText) {
-					result += remainingText;
-				}
-			}
-			
-		} else if (combinedAnnotation && index > combinedAnnotation.segmentRange.start && 
-				   index < combinedAnnotation.segmentRange.start + combinedAnnotation.segmentRange.length - (combinedAnnotation.segmentRange.partialEnd !== null ? 1 : 0)) {
-			// This segment is part of a combined annotation that was already processed - skip it
+			// If not the start of a combined annotation, skip (it was already processed)
 			return;
-			
-		} else if (partiallyProcessedSegments.has(index)) {
-			// This segment was partially processed - only show the remaining part
-			const remainingText = partiallyProcessedSegments.get(index);
-			result += remainingText;
-			
-		} else if (!processedSegments.has(index)) {
-			// This is an individual segment. Find any annotation that matches this segment's text.
-			const annotation = annotations.find(ann => ann.word === segment.text);
+		}
 
-			if (annotation) {
-				const levelColor = getLevelColor(annotation.jlptLevel);
-				const title = annotation.jlptLevel || 'Unknown';
+		// This segment hasn't been processed yet - check for individual annotation
+		const annotation = annotations.find(ann => ann.word === segment.text);
 
-				if (segment.type === 'ruby') {
-					// For ruby segments, color the base text but preserve furigana
-					result += `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${segment.baseText}</span></rb><rt>${segment.furigana}</rt></ruby>`;
-				} else {
-					// For normal text segments, apply color directly
-					result += `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${segment.text}</span>`;
-				}
+		if (annotation) {
+			const levelColor = getLevelColor(annotation.jlptLevel);
+			const title = annotation.jlptLevel || 'Unknown';
+
+			if (segment.type === 'ruby') {
+				// For ruby segments, color the base text but preserve furigana
+				result += `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${segment.baseText}</span></rb><rt>${segment.furigana}</rt></ruby>`;
 			} else {
-				// No annotation found, use original HTML
-				result += segment.originalHtml;
+				// For normal text segments, apply color directly
+				result += `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${segment.text}</span>`;
 			}
+		} else {
+			// No annotation found, use original HTML
+			result += segment.originalHtml;
 		}
 	});
 
