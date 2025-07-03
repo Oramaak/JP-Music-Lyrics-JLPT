@@ -130,6 +130,13 @@
             color: #666;
             font-style: italic;
         }
+        #websiteSelect {
+            margin-left: 10px;
+            padding: 8px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
@@ -138,6 +145,10 @@
     <div class="input-container">
         <input type="text" id="inputText" placeholder="Enter your query here...">
         <button onclick="submitQuery()">Submit</button>
+        <select id="websiteSelect" onchange="changeWebsite()">
+            <option value="lyrical-nonsense.com">Lyrical Nonsense</option>
+            <option value="utaten.com">Utaten</option>
+        </select>
     </div>
     
     <div id="result"></div>

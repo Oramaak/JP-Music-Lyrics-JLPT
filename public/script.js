@@ -1,4 +1,3 @@
-
 async function submitQuery() {
 	const inputValue = document.getElementById("inputText").value;
 	const resultDiv = document.getElementById("result");
@@ -8,6 +7,7 @@ async function submitQuery() {
 	const lyricsHeadDiv = document.getElementById("lyrics_head");
 	const fontSizeControl = document.getElementById("fontSizeControl");
 	const alignmentSelect = document.getElementById("alignment");
+	const websiteSelection = document.getElementById("websiteSelect");
 
 	resultDiv.innerHTML = "Loading...";
 	lyricsDiv.innerHTML = ""; // Clear previous lyrics
@@ -23,7 +23,8 @@ async function submitQuery() {
 			headers: {
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({ query: inputValue }),
+			body: JSON.stringify({ query: inputValue, website: websiteSelection.value
+			 }),
 		});
 
 		if (!response.ok) {
@@ -177,7 +178,7 @@ async function displayAnnotationsLyrics() {
 						};
 
 						// Create color-coded version of this line
-						const colorCodedLine = createColorCodedLine(data.line, data.annotations);
+						const colorCodedLine = createColorCodedLine(data.line, data.annotations, data.textSegments);
 						lyricsLines[data.lineIndex] = colorCodedLine;
 
 						// Update the display with all processed lines so far
@@ -231,11 +232,17 @@ async function displayAnnotationsLyrics() {
 	}
 }
 
-function createColorCodedLine(line, annotations) {
+function createColorCodedLine(line, annotations, textSegments) {
 	if (!annotations || annotations.length === 0) {
 		return line; // Return original line if no annotations
 	}
 
+	// If we have text segments information, use it for more accurate styling
+	if (textSegments && textSegments.length > 0) {
+		return createColorCodedLineWithSegments(line, annotations, textSegments);
+	}
+
+	// Fallback to original logic if no segments provided
 	let colorCodedLine = line;
 
 	// Sort annotations by word length (longest first) to avoid partial replacements
@@ -245,11 +252,146 @@ function createColorCodedLine(line, annotations) {
 		const levelColor = getLevelColor(annotation.jlptLevel);
 		const coloredWord = `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${annotation.jlptLevel || 'Unknown'}">${annotation.word}</span>`;
 
-		// Replace the word in the line (case sensitive)
-		colorCodedLine = colorCodedLine.replace(new RegExp(escapeRegex(annotation.word), 'g'), coloredWord);
+		// Handle ruby text specially - we want to color the base text (rb) but preserve the structure
+		const rubyPattern = new RegExp(`<ruby><rb>(${escapeRegex(annotation.word)})</rb><rt>(.*?)</rt></ruby>`, 'g');
+		if (rubyPattern.test(colorCodedLine)) {
+			// Replace ruby structure with colored base text but keep furigana
+			colorCodedLine = colorCodedLine.replace(rubyPattern, (match, baseText, furigana) => {
+				return `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${annotation.jlptLevel || 'Unknown'}">${baseText}</span></rb><rt>${furigana}</rt></ruby>`;
+			});
+		} else {
+			// For non-ruby text, do normal replacement
+			colorCodedLine = colorCodedLine.replace(new RegExp(escapeRegex(annotation.word), 'g'), coloredWord);
+		}
 	});
 
 	return colorCodedLine;
+}
+
+function createColorCodedLineWithSegments(line, annotations, textSegments) {
+	let result = '';
+	
+	// Create a map of words to their JLPT annotations for quick lookup
+	const annotationMap = new Map();
+	annotations.forEach(annotation => {
+		annotationMap.set(annotation.word, annotation);
+	});
+
+	// Track which segments have been processed
+	const processedSegments = new Set();
+	const partiallyProcessedSegments = new Map(); // segmentIndex -> remainingText
+
+	// First pass: handle combined and partial_combined annotations (prioritize longer matches)
+	annotations
+		.filter(annotation => (annotation.segmentType === 'combined' || annotation.segmentType === 'partial_combined') && annotation.segmentRange)
+		.sort((a, b) => b.segmentRange.length - a.segmentRange.length) // Process longer matches first
+		.forEach(annotation => {
+			const { start, length, partialEnd } = annotation.segmentRange;
+			
+			// Check if any of these segments are already processed
+			let alreadyProcessed = false;
+			for (let i = start; i < start + length; i++) {
+				if (processedSegments.has(i)) {
+					alreadyProcessed = true;
+					break;
+				}
+			}
+			
+			if (!alreadyProcessed) {
+				// Mark segments as processed
+				for (let i = start; i < start + length - (partialEnd !== null ? 1 : 0); i++) {
+					processedSegments.add(i);
+				}
+				
+				// If this is a partial match, mark the last segment as partially processed
+				if (partialEnd !== null) {
+					const lastSegmentIndex = start + length - 1;
+					const lastSegment = textSegments[lastSegmentIndex];
+					const remainingText = lastSegment.text.substring(partialEnd);
+					partiallyProcessedSegments.set(lastSegmentIndex, remainingText);
+				}
+			}
+		});
+
+	// Second pass: process all segments in order
+	textSegments.forEach((segment, index) => {
+		// Check if this segment is part of a combined annotation
+		const combinedAnnotation = annotations.find(ann => 
+			(ann.segmentType === 'combined' || ann.segmentType === 'partial_combined') && 
+			ann.segmentRange && 
+			index >= ann.segmentRange.start && 
+			index < ann.segmentRange.start + ann.segmentRange.length
+		);
+
+		if (combinedAnnotation && index === combinedAnnotation.segmentRange.start) {
+			// This is the start of a combined annotation - render the whole thing
+			const { start, length, partialEnd } = combinedAnnotation.segmentRange;
+			const levelColor = getLevelColor(combinedAnnotation.jlptLevel);
+			const title = combinedAnnotation.jlptLevel || 'Unknown';
+			
+			// Build the combined segment HTML with proper styling
+			let combinedHtml = '';
+			for (let i = start; i < start + length; i++) {
+				const seg = textSegments[i];
+				let segmentText = seg.text;
+				
+				// If this is the last segment and we have a partial match, only use part of it
+				if (i === start + length - 1 && partialEnd !== null) {
+					segmentText = seg.text.substring(0, partialEnd);
+				}
+				
+				if (seg.type === 'ruby') {
+					combinedHtml += `<ruby><rb>${seg.baseText}</rb><rt>${seg.furigana}</rt></ruby>`;
+				} else {
+					combinedHtml += segmentText;
+				}
+			}
+			
+			// Wrap the entire combined segment with color styling
+			result += `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${combinedHtml}</span>`;
+			
+			// If there's remaining text from a partial match, add it
+			if (partialEnd !== null) {
+				const lastSegmentIndex = start + length - 1;
+				const remainingText = partiallyProcessedSegments.get(lastSegmentIndex);
+				if (remainingText) {
+					result += remainingText;
+				}
+			}
+			
+		} else if (combinedAnnotation && index > combinedAnnotation.segmentRange.start && 
+				   index < combinedAnnotation.segmentRange.start + combinedAnnotation.segmentRange.length - (combinedAnnotation.segmentRange.partialEnd !== null ? 1 : 0)) {
+			// This segment is part of a combined annotation that was already processed - skip it
+			return;
+			
+		} else if (partiallyProcessedSegments.has(index)) {
+			// This segment was partially processed - only show the remaining part
+			const remainingText = partiallyProcessedSegments.get(index);
+			result += remainingText;
+			
+		} else if (!processedSegments.has(index)) {
+			// This is an individual segment - check for individual annotation
+			const annotation = annotationMap.get(segment.text);
+			
+			if (annotation && annotation.segmentType !== 'combined' && annotation.segmentType !== 'partial_combined') {
+				const levelColor = getLevelColor(annotation.jlptLevel);
+				const title = annotation.jlptLevel || 'Unknown';
+				
+				if (segment.type === 'ruby') {
+					// For ruby segments, color the base text but preserve furigana
+					result += `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${segment.baseText}</span></rb><rt>${segment.furigana}</rt></ruby>`;
+				} else {
+					// For normal text segments, apply color directly
+					result += `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${segment.text}</span>`;
+				}
+			} else {
+				// No annotation found, use original HTML
+				result += segment.originalHtml;
+			}
+		}
+	});
+	
+	return result;
 }
 
 function updateColorCodedDisplay(lyricsLines, container) {
@@ -363,4 +505,10 @@ function adjustFontSize(size) {
 	lyricsDiv.style.fontSize = size + "px";
 	lyricsAnnotationsDiv.style.fontSize = size + "px";
 	fontSizeDisplay.textContent = size + "px";
+}
+
+function changeWebsite() {
+	// This function can be used to trigger actions when website selection changes
+	// Currently, the website selection is handled automatically when submitting a query
+	console.log('Website selection changed to:', document.getElementById("websiteSelect").value);
 }
