@@ -277,6 +277,41 @@ function createColorCodedLineWithSegments(line, annotations, textSegments) {
 		annotationMap.set(annotation.word, annotation);
 	});
 
+	// If we only have simple_match or unmatched annotations (no segments), use fallback logic
+	const hasSegmentMatches = annotations.some(ann => 
+		ann.segmentType === 'combined' || 
+		ann.segmentType === 'partial_combined' || 
+		(ann.segmentType !== 'simple_match' && ann.segmentType !== 'unmatched')
+	);
+	
+	if (!hasSegmentMatches) {
+		// Use simpler replacement logic for annotations that don't align with segments
+		let workingLine = line;
+		
+		// Sort annotations by word length (longest first) to avoid partial replacements
+		const sortedAnnotations = [...annotations].sort((a, b) => b.word.length - a.word.length);
+		
+		sortedAnnotations.forEach(annotation => {
+			const levelColor = getLevelColor(annotation.jlptLevel);
+			const title = annotation.jlptLevel || 'Unknown';
+			const coloredWord = `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${annotation.word}</span>`;
+			
+			// Handle ruby text specially - we want to color the base text (rb) but preserve the structure
+			const rubyPattern = new RegExp(`<ruby><rb>(${escapeRegex(annotation.word)})</rb><rt>(.*?)</rt></ruby>`, 'g');
+			if (rubyPattern.test(workingLine)) {
+				// Replace ruby structure with colored base text but keep furigana
+				workingLine = workingLine.replace(rubyPattern, (match, baseText, furigana) => {
+					return `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${baseText}</span></rb><rt>${furigana}</rt></ruby>`;
+				});
+			} else {
+				// For non-ruby text, do normal replacement
+				workingLine = workingLine.replace(new RegExp(escapeRegex(annotation.word), 'g'), coloredWord);
+			}
+		});
+		
+		return workingLine;
+	}
+
 	// Track which segments have been processed
 	const processedSegments = new Set();
 	const partiallyProcessedSegments = new Map(); // segmentIndex -> remainingText
@@ -370,13 +405,13 @@ function createColorCodedLineWithSegments(line, annotations, textSegments) {
 			result += remainingText;
 			
 		} else if (!processedSegments.has(index)) {
-			// This is an individual segment - check for individual annotation
-			const annotation = annotationMap.get(segment.text);
-			
-			if (annotation && annotation.segmentType !== 'combined' && annotation.segmentType !== 'partial_combined') {
+			// This is an individual segment. Find any annotation that matches this segment's text.
+			const annotation = annotations.find(ann => ann.word === segment.text);
+
+			if (annotation) {
 				const levelColor = getLevelColor(annotation.jlptLevel);
 				const title = annotation.jlptLevel || 'Unknown';
-				
+
 				if (segment.type === 'ruby') {
 					// For ruby segments, color the base text but preserve furigana
 					result += `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${segment.baseText}</span></rb><rt>${segment.furigana}</rt></ruby>`;
@@ -390,7 +425,7 @@ function createColorCodedLineWithSegments(line, annotations, textSegments) {
 			}
 		}
 	});
-	
+
 	return result;
 }
 
@@ -473,15 +508,15 @@ function showSummary(allAnnotations, summarySection, jlptSummary) {
 }
 
 function getLevelColor(jlptLevel) {
-	if (!jlptLevel) return '#9E9E9E';
+	if (!jlptLevel || jlptLevel === 'null' || jlptLevel === null) return '#9E9E9E'; // Gray for unknown/null
 
-	if (jlptLevel.includes('N5')) return '#4CAF50';
-	if (jlptLevel.includes('N4')) return '#8BC34A';
-	if (jlptLevel.includes('N3')) return '#FFC107';
-	if (jlptLevel.includes('N2')) return '#FF9800';
-	if (jlptLevel.includes('N1')) return '#F44336';
+	if (jlptLevel.includes('N5')) return '#4CAF50'; // Green
+	if (jlptLevel.includes('N4')) return '#8BC34A'; // Light green
+	if (jlptLevel.includes('N3')) return '#FFC107'; // Yellow
+	if (jlptLevel.includes('N2')) return '#FF9800'; // Orange
+	if (jlptLevel.includes('N1')) return '#F44336'; // Red
 
-	return '#9E9E9E';
+	return '#9E9E9E'; // Gray for any other unknown values
 }
 
 function toggleAlignment() {

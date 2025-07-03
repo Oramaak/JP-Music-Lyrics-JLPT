@@ -449,6 +449,15 @@ app.get('/api/annotations', async (req, res) => {
                     }
                 }
                 
+                // If no segments were found (no ruby text), treat the entire line as one normal segment
+                if (textSegments.length === 0 && searchText.trim()) {
+                    textSegments.push({
+                        type: 'normal',
+                        text: searchText.trim(),
+                        originalHtml: originalLine
+                    });
+                }
+                
                 console.log(`Fetching annotations for line: ${searchText} (original: ${line})`);
 
                 // Send progress update
@@ -502,19 +511,26 @@ app.get('/api/annotations', async (req, res) => {
                 });
 
                 console.log('Annotations fetched successfully:', annotations);
+                console.log('Text segments:', textSegments);
+                console.log('Search text was:', searchText);
 
                 // Try to match annotations with text segments for better accuracy
                 const enhancedAnnotations = [];
                 const usedAnnotations = new Set();
+                
+                console.log('Starting segment matching process...');
                 
                 // First, try to find matches by combining segments and partial segments
                 for (let start = 0; start < textSegments.length; start++) {
                     for (let length = Math.min(4, textSegments.length - start); length >= 1; length--) {
                         // Try full segment combination first
                         const combinedText = textSegments.slice(start, start + length).map(s => s.text).join('');
+                        console.log(`Trying to match combined text: "${combinedText}" (segments ${start} to ${start + length - 1})`);
+                        
                         let matchingAnnotation = annotations.find(ann => ann.word === combinedText && !usedAnnotations.has(ann.word));
                         
                         if (matchingAnnotation) {
+                            console.log(`Found exact match: "${matchingAnnotation.word}" matches combined text "${combinedText}"`);
                             enhancedAnnotations.push({
                                 word: combinedText,
                                 detailUrl: matchingAnnotation.detailUrl,
@@ -538,8 +554,11 @@ app.get('/api/annotations', async (req, res) => {
                                 const remainingText = matchingAnnotation.word.substring(combinedText.length);
                                 const nextSegment = textSegments[start + length];
                                 
+                                console.log(`Checking partial match: "${matchingAnnotation.word}" starts with "${combinedText}", remaining: "${remainingText}", next segment: "${nextSegment ? nextSegment.text : 'none'}"`);
+                                
                                 // Check if the remaining text matches the beginning of the next segment
                                 if (nextSegment && nextSegment.text.startsWith(remainingText)) {
+                                    console.log(`Found partial match: "${matchingAnnotation.word}"`);
                                     enhancedAnnotations.push({
                                         word: matchingAnnotation.word,
                                         detailUrl: matchingAnnotation.detailUrl,
@@ -559,19 +578,34 @@ app.get('/api/annotations', async (req, res) => {
                     }
                 }
 
+                console.log('Enhanced annotations after segment matching:', enhancedAnnotations);
+                console.log('Used annotations:', Array.from(usedAnnotations));
+
                 // Add any remaining annotations that didn't match with segments
                 annotations.forEach(annotation => {
                     if (!usedAnnotations.has(annotation.word)) {
-                        enhancedAnnotations.push({
-                            word: annotation.word,
-                            detailUrl: annotation.detailUrl,
-                            segmentType: 'unmatched'
-                        });
+                        console.log(`Adding unmatched annotation: "${annotation.word}"`);
+                        
+                        // For unmatched annotations, check if the word exists in the full search text
+                        if (searchText.includes(annotation.word)) {
+                            console.log(`Found "${annotation.word}" in search text, marking as simple match`);
+                            enhancedAnnotations.push({
+                                word: annotation.word,
+                                detailUrl: annotation.detailUrl,
+                                segmentType: 'simple_match'
+                            });
+                        } else {
+                            enhancedAnnotations.push({
+                                word: annotation.word,
+                                detailUrl: annotation.detailUrl,
+                                segmentType: 'unmatched'
+                            });
+                        }
                     }
                 });
 
-                // Use enhanced annotations
-                const finalAnnotations = enhancedAnnotations;
+                // Use enhanced annotations if we have segments, otherwise use original annotations
+                const finalAnnotations = textSegments.length > 0 ? enhancedAnnotations : annotations;
 
                 console.log('Enhanced annotations:', finalAnnotations);
 
@@ -703,14 +737,18 @@ app.get('/api/annotations', async (req, res) => {
 
                             return {
                                 word: annotation.word,
-                                jlptLevel: jlptLevel
+                                jlptLevel: jlptLevel,
+                                segmentType: annotation.segmentType,
+                                segmentRange: annotation.segmentRange
                             };
 
                         } catch (error) {
                             console.error(`[Parallel] Error fetching JLPT level for ${annotation.word}:`, error);
                             return {
                                 word: annotation.word,
-                                jlptLevel: null
+                                jlptLevel: null,
+                                segmentType: annotation.segmentType,
+                                segmentRange: annotation.segmentRange
                             };
                         } finally {
                             await wordPage.close();
