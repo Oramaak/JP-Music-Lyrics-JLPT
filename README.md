@@ -1,6 +1,6 @@
 # Japanese Music Lyrics to its equivalent JLPT Level
 * Highly experimental!
-* Retrive lyrics from lyrical-nonsense.com with JLPT level based on jisho.org
+* Retrive lyrics from lyrical-nonsense.com or utaten.com with JLPT level based on jisho.org
 * Convert [WaniKani](https://www.wkstats.com/charts/jlpt) level to JLPT, but default JLPT level is prioritized.
 
 | WaniKani Level Range | JLPT Level |
