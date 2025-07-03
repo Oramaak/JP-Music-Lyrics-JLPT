@@ -244,11 +244,17 @@ function createColorCodedLine(line, annotations, textSegments) {
 
 	// Fallback to original logic if no segments provided
 	let colorCodedLine = line;
+	const processedWords = new Set(); // Track which words have been processed to avoid duplicates
 
 	// Sort annotations by word length (longest first) to avoid partial replacements
 	const sortedAnnotations = [...annotations].sort((a, b) => b.word.length - a.word.length);
 
 	sortedAnnotations.forEach(annotation => {
+		// Skip if this word has already been processed
+		if (processedWords.has(annotation.word)) {
+			return;
+		}
+		
 		const levelColor = getLevelColor(annotation.jlptLevel);
 		const coloredWord = `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${annotation.jlptLevel || 'Unknown'}">${annotation.word}</span>`;
 
@@ -259,9 +265,13 @@ function createColorCodedLine(line, annotations, textSegments) {
 			colorCodedLine = colorCodedLine.replace(rubyPattern, (match, baseText, furigana) => {
 				return `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${annotation.jlptLevel || 'Unknown'}">${baseText}</span></rb><rt>${furigana}</rt></ruby>`;
 			});
+			processedWords.add(annotation.word);
 		} else {
-			// For non-ruby text, do normal replacement
-			colorCodedLine = colorCodedLine.replace(new RegExp(escapeRegex(annotation.word), 'g'), coloredWord);
+			// For non-ruby text, check if the word exists in the current line before replacing
+			if (colorCodedLine.includes(annotation.word)) {
+				colorCodedLine = colorCodedLine.replace(new RegExp(escapeRegex(annotation.word), 'g'), coloredWord);
+				processedWords.add(annotation.word);
+			}
 		}
 	});
 
@@ -287,11 +297,17 @@ function createColorCodedLineWithSegments(line, annotations, textSegments) {
 	if (!hasSegmentMatches) {
 		// Use simpler replacement logic for annotations that don't align with segments
 		let workingLine = line;
+		const processedWords = new Set(); // Track which words have been processed to avoid duplicates
 		
 		// Sort annotations by word length (longest first) to avoid partial replacements
 		const sortedAnnotations = [...annotations].sort((a, b) => b.word.length - a.word.length);
 		
 		sortedAnnotations.forEach(annotation => {
+			// Skip if this word has already been processed
+			if (processedWords.has(annotation.word)) {
+				return;
+			}
+			
 			const levelColor = getLevelColor(annotation.jlptLevel);
 			const title = annotation.jlptLevel || 'Unknown';
 			const coloredWord = `<span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${annotation.word}</span>`;
@@ -303,9 +319,13 @@ function createColorCodedLineWithSegments(line, annotations, textSegments) {
 				workingLine = workingLine.replace(rubyPattern, (match, baseText, furigana) => {
 					return `<ruby><rb><span style="background-color: ${levelColor}; color: white; padding: 1px 2px; border-radius: 2px;" title="${title}">${baseText}</span></rb><rt>${furigana}</rt></ruby>`;
 				});
+				processedWords.add(annotation.word);
 			} else {
-				// For non-ruby text, do normal replacement
-				workingLine = workingLine.replace(new RegExp(escapeRegex(annotation.word), 'g'), coloredWord);
+				// For non-ruby text, check if the word exists in the current working line before replacing
+				if (workingLine.includes(annotation.word)) {
+					workingLine = workingLine.replace(new RegExp(escapeRegex(annotation.word), 'g'), coloredWord);
+					processedWords.add(annotation.word);
+				}
 			}
 		});
 		

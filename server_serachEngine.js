@@ -400,7 +400,10 @@ app.get('/api/annotations', async (req, res) => {
                 searchText = searchText.replace(/<ruby><rb>(.*?)<\/rb><rt>.*?<\/rt><\/ruby>/g, '$1');
                 
                 // Then remove any remaining HTML tags
-                searchText = searchText.replace(/<[^>]*>/g, '').trim();
+                searchText = searchText.replace(/<[^>]*>/g, '');
+                
+                // Clean up extra whitespace but preserve single spaces between words
+                searchText = searchText.replace(/\s+/g, ' ').trim();
                 
                 // Create a mapping of original positions to help with styling later
                 const originalLine = line;
